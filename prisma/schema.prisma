@@ -1,0 +1,236 @@
+// prisma/schema.prisma
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String          @id @default(cuid())
+  name          String?
+  email         String?         @unique
+  password      String?
+  phone         String?
+  city          String?
+  role          String          @default("MEMBER") // MEMBER, ADMIN
+  image         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  // Relations
+  memberships   Membership[]
+  payments      Payment[]
+  goals         FitnessGoal[]
+  logs          WorkoutLog[]
+  progress      ProgressEntry[]
+  accounts      Account[]
+  sessions      Session[]
+}
+
+// NextAuth standard models
+model Account {
+  id                String   @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Plan {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  price       Float
+  duration    Int          // in months
+  tier        String       // SILVER, GOLD, PLATINUM
+  description String
+  features    String       // Serialized JSON string array
+  popular     Boolean      @default(false)
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  memberships Membership[]
+}
+
+model Membership {
+  id         String   @id @default(cuid())
+  userId     String
+  planId     String
+  status     String   @default("PENDING") // ACTIVE, EXPIRED, PENDING
+  cardNumber String   @unique
+  startDate  DateTime
+  endDate    DateTime
+  autoRenew  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id])
+}
+
+model Payment {
+  id                String   @id @default(cuid())
+  userId            String
+  membershipId      String?
+  amount            Float
+  currency          String   @default("INR")
+  status            String   @default("PENDING") // PENDING, SUCCESS, FAILED
+  razorpayOrderId   String
+  razorpayPaymentId String?
+  razorpaySignature String?
+  description       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GymLocation {
+  id        String   @id @default(cuid())
+  name      String
+  city      String
+  state     String
+  address   String
+  phone     String?
+  email     String?
+  lat       Float
+  lng       Float
+  amenities String   // Serialized JSON string array
+  timings   String
+  rating    Float    @default(4.5)
+  active    Boolean  @default(true)
+  imageUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WorkoutPlan {
+  id          String            @id @default(cuid())
+  name        String
+  slug        String            @unique
+  category    String
+  difficulty  String
+  duration    Int               // in minutes
+  calories    Int
+  description String
+  imageUrl    String?
+  featured    Boolean           @default(false)
+  exercises   WorkoutExercise[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model Exercise {
+  id           String            @id @default(cuid())
+  name         String
+  slug         String            @unique
+  muscleGroup  String
+  equipment    String
+  difficulty   String
+  instructions String            // Detailed step-by-step
+  tips         String            // Serialized JSON string array
+  videoUrl     String?
+  imageUrl     String?
+  workoutPlans WorkoutExercise[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model WorkoutExercise {
+  id            String      @id @default(cuid())
+  workoutPlanId String
+  exerciseId    String
+  sets          Int
+  reps          String      // e.g. "12", "to failure"
+  restSeconds   Int
+  order         Int
+
+  workoutPlan WorkoutPlan @relation(fields: [workoutPlanId], references: [id], onDelete: Cascade)
+  exercise    Exercise    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+}
+
+model FitnessGoal {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  target    Float
+  current   Float
+  unit      String   // kg, reps, mins, etc.
+  deadline  DateTime
+  status    String   @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, ARCHIVED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WorkoutLog {
+  id         String   @id @default(cuid())
+  userId     String
+  exerciseId String
+  sets       Int
+  reps       Int
+  weight     Float
+  duration   Int      // in minutes
+  notes      String?
+  date       DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ProgressEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  weight    Float?   // in kg
+  bodyFat   Float?   // in %
+  chest     Float?   // in inches
+  waist     Float?   // in inches
+  hips      Float?   // in inches
+  biceps    Float?   // in inches
+  thighs    Float?   // in inches
+  notes     String?
+  date      DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
